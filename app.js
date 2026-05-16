@@ -28,6 +28,7 @@ function updateThemeIcon() {
 // ADD TODO
 todoInput.addEventListener('keydown', e => {
     if (e.key === 'Enter' && todoInput.value.trim()) {
+        e.preventDefault();
         todos.push({ id: Date.now(), text: todoInput.value.trim(), completed: false });
         todoInput.value = '';
         saveTodos();
@@ -35,7 +36,7 @@ todoInput.addEventListener('keydown', e => {
     }
 });
 
-// CREATE TODO ELEMENT (no innerHTML - XSS safe)
+// CREATE ELEMENT
 function createTodoElement(todo) {
     const li = document.createElement('li');
     li.classList.add('todo-item');
@@ -80,34 +81,66 @@ function render() {
 
     const active = todos.filter(t => !t.completed).length;
     itemsLeft.textContent = `${active} item${active !== 1 ? 's' : ''} left`;
-
-    setupEventDelegation();
-    setupDragAndDrop();
 }
 
-// EVENT DELEGATION (one listener for check/delete)
-function setupEventDelegation() {
-    todoList.onclick = e => {
-        const li = e.target.closest('.todo-item');
-        if (!li) return;
-        const id = Number(li.dataset.id);
+// EVENT DELEGATION - click
+todoList.addEventListener('click', e => {
+    const li = e.target.closest('.todo-item');
+    if (!li) return;
+    const id = Number(li.dataset.id);
 
-        if (e.target.closest('.todo-check')) {
-            const t = todos.find(t => t.id === id);
-            if (t) { t.completed = !t.completed; saveTodos(); render(); }
-        }
+    if (e.target.closest('.todo-check')) {
+        const t = todos.find(t => t.id === id);
+        if (t) { t.completed = !t.completed; saveTodos(); render(); }
+    }
 
-        if (e.target.closest('.delete-btn')) {
-            todos = todos.filter(t => t.id !== id);
-            saveTodos();
-            render();
-        }
-    };
+    if (e.target.closest('.delete-btn')) {
+        todos = todos.filter(t => t.id !== id);
+        saveTodos();
+        render();
+    }
+});
+
+// EVENT DELEGATION - drag
+let dragSrcId = null;
+
+todoList.addEventListener('dragstart', e => {
+    const li = e.target.closest('.todo-item');
+    if (!li) return;
+    dragSrcId = Number(li.dataset.id);
+    setTimeout(() => li.classList.add('dragging'), 0);
+});
+
+todoList.addEventListener('dragend', e => {
+    const li = e.target.closest('.todo-item');
+    if (li) li.classList.remove('dragging');
+    updateTodosOrder();
+});
+
+todoList.addEventListener('dragover', e => {
+    e.preventDefault();
+    const dragging = todoList.querySelector('.dragging');
+    const target = e.target.closest('.todo-item');
+    if (!dragging || !target || dragging === target) return;
+    const rect = target.getBoundingClientRect();
+    if (e.clientY < rect.top + rect.height / 2) {
+        todoList.insertBefore(dragging, target);
+    } else {
+        todoList.insertBefore(dragging, target.nextSibling);
+    }
+});
+
+function updateTodosOrder() {
+    const items = todoList.querySelectorAll('.todo-item');
+    const newOrder = Array.from(items).map(item => Number(item.dataset.id));
+    todos.sort((a, b) => newOrder.indexOf(a.id) - newOrder.indexOf(b.id));
+    saveTodos();
 }
 
 // FILTER
 filterBtns.forEach(btn => {
     btn.addEventListener('click', () => {
+        if (btn.dataset.filter === currentFilter) return;
         currentFilter = btn.dataset.filter;
         filterBtns.forEach(b => b.classList.remove('active'));
         document.querySelectorAll(`[data-filter="${currentFilter}"]`)
@@ -123,42 +156,8 @@ clearCompleted.addEventListener('click', () => {
     render();
 });
 
-// SAVE
 function saveTodos() {
     localStorage.setItem('todos', JSON.stringify(todos));
-}
-
-// DRAG AND DROP
-function setupDragAndDrop() {
-    const items = todoList.querySelectorAll('.todo-item');
-
-    items.forEach(item => {
-        item.addEventListener('dragstart', () => {
-            setTimeout(() => item.classList.add('dragging'), 0);
-        });
-        item.addEventListener('dragend', () => {
-            item.classList.remove('dragging');
-            updateTodosOrder();
-        });
-        item.addEventListener('dragover', e => {
-            e.preventDefault();
-            const dragging = todoList.querySelector('.dragging');
-            if (!dragging || dragging === item) return;
-            const rect = item.getBoundingClientRect();
-            if (e.clientY < rect.top + rect.height / 2) {
-                todoList.insertBefore(dragging, item);
-            } else {
-                todoList.insertBefore(dragging, item.nextSibling);
-            }
-        });
-    });
-}
-
-function updateTodosOrder() {
-    const items = todoList.querySelectorAll('.todo-item');
-    const newOrder = Array.from(items).map(item => Number(item.dataset.id));
-    todos.sort((a, b) => newOrder.indexOf(a.id) - newOrder.indexOf(b.id));
-    saveTodos();
 }
 
 render();
