@@ -193,6 +193,10 @@ header h1 {
     opacity: 1;
 }
 
+.todo-item:focus-within .delete-btn {
+  opacity: 1;
+}
+
 .delete-btn img {
     width: 18px;
 }
